@@ -1,10 +1,7 @@
 package co.istad.mongodbproject.feature.category;
 
 import co.istad.mongodbproject.base.BasedMessage;
-import co.istad.mongodbproject.feature.category.dto.CategoryCreateRequest;
-import co.istad.mongodbproject.feature.category.dto.CategoryRequest;
-import co.istad.mongodbproject.feature.category.dto.CategoryResponse;
-import co.istad.mongodbproject.feature.category.dto.CategoryUpdateRequest;
+import co.istad.mongodbproject.feature.category.dto.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -53,6 +50,10 @@ public class CategoryController {
         return categoryService.enableCategory(id);
     }
 
+    @GetMapping("/popular")
+    List<CategoryPopularDTO> getPopularCategories() {
+        return categoryService.getPopularCategories();
+    }
 
 }
 

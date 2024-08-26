@@ -3,10 +3,7 @@ package co.istad.mongodbproject.feature.category;
 
 import co.istad.mongodbproject.base.BasedMessage;
 import co.istad.mongodbproject.domain.Category;
-import co.istad.mongodbproject.feature.category.dto.CategoryCreateRequest;
-import co.istad.mongodbproject.feature.category.dto.CategoryRequest;
-import co.istad.mongodbproject.feature.category.dto.CategoryResponse;
-import co.istad.mongodbproject.feature.category.dto.CategoryUpdateRequest;
+import co.istad.mongodbproject.feature.category.dto.*;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,5 +24,7 @@ public interface CategoryService {
     BasedMessage disableCategory(String id);
 
     BasedMessage enableCategory(String id);
+
+    List<CategoryPopularDTO> getPopularCategories();
 
 }

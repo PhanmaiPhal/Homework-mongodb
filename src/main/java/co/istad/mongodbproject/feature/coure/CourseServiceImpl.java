@@ -4,6 +4,7 @@ package co.istad.mongodbproject.feature.coure;
 import co.istad.mongodbproject.base.BasedMessage;
 import co.istad.mongodbproject.domain.Category;
 import co.istad.mongodbproject.domain.Course;
+import co.istad.mongodbproject.domain.Video;
 import co.istad.mongodbproject.feature.category.CategoryRepository;
 import co.istad.mongodbproject.feature.coure.dto.*;
 import co.istad.mongodbproject.mapper.CourseMapper;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import javax.swing.text.html.Option;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -218,6 +220,230 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public List<Course> findFreeCourse(int page, int size) {
         return courseRepository.findByPrice(0);
+    }
+
+    @Override
+    public void updateIsPaid(String id, Boolean isPaid) {
+
+        Course course = courseRepository.findById(id).orElseThrow(
+                () -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Course not found..!"
+                )
+        );
+        course.setIsPaid(isPaid);
+        courseRepository.save(course);
+
+    }
+
+    @Override
+    public void createVideoInSection(String courseId, VideoCreateRequest videoCreateRequest) {
+
+        // Step 1: Find the Course
+        Course course = courseRepository.findById(courseId).orElseThrow(
+                () -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Course not found..!"
+                )
+        );
+
+        // Step 2: Find the Section by sectionOrderNo
+        List<Section> sections = course.getSections();
+        if (sections == null || sections.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No sections available in the course..!"
+            );
+        }
+
+        Integer sectionOrderNo = videoCreateRequest.sectionOrderNo();
+        Section targetSection = sections.stream()
+                .filter(section -> section.getOrderNo().equals(sectionOrderNo))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Section with order number " + sectionOrderNo + " not found..!"
+                ));
+
+        // Step 3: Create a New Video from VideoCreateRequest
+        Video newVideo = Video.builder()
+                .lectureNo(videoCreateRequest.lectureNo())
+                .orderNo(videoCreateRequest.orderNo())
+                .title(videoCreateRequest.title())
+                .fileName(videoCreateRequest.fileName())
+                .build();
+
+        // Step 4: Check for Unique orderNo in Section's Videos List
+        List<Video> videos = targetSection.getVideos();
+        if (videos == null) {
+            videos = new ArrayList<>();
+            targetSection.setVideos(videos);
+        } else {
+            boolean isDuplicate = videos.stream()
+                    .anyMatch(video -> video.getOrderNo().equals(newVideo.getOrderNo()));
+            if (isDuplicate) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Video order number must be unique within the section..!"
+                );
+            }
+        }
+
+        // Add the Video to the Section's Videos List
+        videos.add(newVideo);
+
+        // Step 5: Save the Updated Course
+        courseRepository.save(course);
+
+    }
+
+    @Override
+    public void updateVideoInSection(String courseId, VideoUpdateRequest videoUpdateRequest) {
+
+        // Step 1: Find the Course
+        Course course = courseRepository.findById(courseId).orElseThrow(
+                () -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Course not found..!"
+                )
+        );
+
+        // Step 2: Find the Section by sectionOrderNo
+        List<Section> sections = course.getSections();
+        if (sections == null || sections.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No sections available in the course..!"
+            );
+        }
+
+        Integer sectionOrderNo = videoUpdateRequest.sectionOrderNo();
+        Section targetSection = sections.stream()
+                .filter(section -> section.getOrderNo().equals(sectionOrderNo))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Section with order number " + sectionOrderNo + " not found..!"
+                ));
+
+        // Step 3: Ensure unique orderNo for videos
+        List<Video> updatedVideos = videoUpdateRequest.videos().stream()
+                .collect(Collectors.toMap(
+                        Video::getOrderNo,  // Key: orderNo
+                        video -> video,     // Value: Video
+                        (existing, replacement) -> existing  // Merge function to handle duplicates
+                ))
+                .values()
+                .stream()
+                .sorted(Comparator.comparingInt(Video::getOrderNo)) // Optional: Sort by orderNo
+                .collect(Collectors.toList());
+
+        // Step 4: Set the videos in the target section
+        targetSection.setVideos(updatedVideos);
+
+        // Step 5: Save the Updated Course
+        courseRepository.save(course);
+
+    }
+
+
+    @Override
+    public Page<?> advancedSearchCourseParam(int page, int size, String filterAnd, String filterOr, String orders, String response) {
+        log.info("Searching students with filterAnd: {}, filterOr: {}, orders: {}", filterAnd, filterOr, orders);
+
+        Query query = new Query();
+
+        // Add AND filters
+        if (filterAnd != null && !filterAnd.isEmpty()) {
+            List<Criteria> andCriteria = parseFilterCriteria(filterAnd);
+            query.addCriteria(new Criteria().andOperator(andCriteria.toArray(new Criteria[0])));
+        }
+
+        // Add OR filters
+        if (filterOr != null && !filterOr.isEmpty()) {
+            List<Criteria> orCriteria = parseFilterCriteria(filterOr);
+            query.addCriteria(new Criteria().orOperator(orCriteria.toArray(new Criteria[0])));
+        }
+
+        // Add sorting
+        if (orders != null && !orders.isEmpty()) {
+            Sort sort = parseSortOrders(orders);
+            query.with(sort);
+        }
+
+        // Apply pagination
+        PageRequest pageRequest = PageRequest.of(page, size);
+        query.with(pageRequest);
+
+        // Execute query
+        if (response.equals("COURSE_DETAIL")) {
+            List<CourseDetailResponse> courses = mongoTemplate.find(query, Course.class)
+                    .stream()
+                    .map(courseMapper::toCourseDetailResponse)
+                    .collect(Collectors.toList());
+            long count = mongoTemplate.count(Query.of(query).limit(-1).skip(-1), Course.class);
+            return new PageImpl<>(courses, pageRequest, count);
+        }
+
+        List<CourseSnippetResponse> courses = mongoTemplate.find(query, Course.class)
+                .stream()
+                .map(courseMapper::toCourseSnippetResponse)
+                .collect(Collectors.toList());
+
+        // Clone query for count operation to avoid conflict
+        Query countQuery = Query.of(query).limit(-1).skip(-1);
+        long count = mongoTemplate.count(countQuery, Course.class);
+
+        return new PageImpl<>(courses, pageRequest, count);
+    }
+
+    @Override
+    public Page<?> advancedSearchCourseRequestBody(int page, int size, FilterDTO filterDTO, String response) {
+
+        Query query = new Query();
+
+        // Add AND filters
+        if (filterDTO.filterAnd() != null && !filterDTO.filterAnd().isEmpty()) {
+            List<Criteria> andCriteria = parseFilterCriteria(filterDTO.filterAnd());
+            query.addCriteria(new Criteria().andOperator(andCriteria.toArray(new Criteria[0])));
+        }
+
+        // Add OR filters
+        if (filterDTO.filterOr() != null && !filterDTO.filterOr().isEmpty()) {
+            List<Criteria> orCriteria = parseFilterCriteria(filterDTO.filterOr());
+            query.addCriteria(new Criteria().orOperator(orCriteria.toArray(new Criteria[0])));
+        }
+
+        // Add sorting
+        if (filterDTO.orders() != null && !filterDTO.orders().isEmpty()) {
+            Sort sort = parseSortOrders(filterDTO.orders());
+            query.with(sort);
+        }
+
+        // Apply pagination
+        PageRequest pageRequest = PageRequest.of(page, size);
+        query.with(pageRequest);
+
+        // Execute query
+        if (response.equals("COURSE_DETAIL")) {
+            List<CourseDetailResponse> courses = mongoTemplate.find(query, Course.class)
+                    .stream()
+                    .map(courseMapper::toCourseDetailResponse)
+                    .collect(Collectors.toList());
+            long count = mongoTemplate.count(Query.of(query).limit(-1).skip(-1), Course.class);
+            return new PageImpl<>(courses, pageRequest, count);
+        }
+
+        List<CourseSnippetResponse> courses = mongoTemplate.find(query, Course.class)
+                .stream()
+                .map(courseMapper::toCourseSnippetResponse)
+                .collect(Collectors.toList());
+
+        // Clone query for count operation to avoid conflict
+        Query countQuery = Query.of(query).limit(-1).skip(-1);
+        long count = mongoTemplate.count(countQuery, Course.class);
+
+        return new PageImpl<>(courses, pageRequest, count);
     }
 
 

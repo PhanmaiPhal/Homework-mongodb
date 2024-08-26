@@ -50,5 +50,18 @@ public interface CourseService {
     //Get free courses
     List<Course> findFreeCourse(int page , int size);
 
+    //Get is-paid
+    void updateIsPaid(String id, Boolean isPaid);
+
+    //Get create video in section
+    void createVideoInSection(String courseId, VideoCreateRequest videoCreateRequest);
+
+    //Get update video in section
+    void updateVideoInSection(String courseId, VideoUpdateRequest videoUpdateRequest);
+
+    Page<?> advancedSearchCourseParam(int page, int size, String filterAnd, String filterOr, String orders, String response);
+
+    Page<?> advancedSearchCourseRequestBody(int page, int size, FilterDTO filterDTO, String response);
+
 
 }

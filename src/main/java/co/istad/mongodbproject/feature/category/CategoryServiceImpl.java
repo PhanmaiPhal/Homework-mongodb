@@ -3,6 +3,7 @@ package co.istad.mongodbproject.feature.category;
 import co.istad.mongodbproject.base.BasedMessage;
 import co.istad.mongodbproject.domain.Category;
 import co.istad.mongodbproject.feature.category.dto.CategoryCreateRequest;
+import co.istad.mongodbproject.feature.category.dto.CategoryPopularDTO;
 import co.istad.mongodbproject.feature.category.dto.CategoryResponse;
 import co.istad.mongodbproject.feature.category.dto.CategoryUpdateRequest;
 import co.istad.mongodbproject.mapper.CategoryMapper;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -22,6 +25,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
+    private final CourseRepository courseRepository;
 
     @Override
     public List<CategoryResponse> getAllCategories() {
@@ -101,5 +105,27 @@ public class CategoryServiceImpl implements CategoryService {
         categoryRepository.save(category);
 
         return new BasedMessage("Category has been enabled!");
+    }
+
+    @Override
+    public List<CategoryPopularDTO> getPopularCategories() {
+
+        List<Category> categories = categoryRepository.findAll();
+
+        Map<String, Long> categoryCourseCounts = categories.stream()
+                .collect(Collectors.toMap(
+                        Category::getName,
+                        category -> (long) courseRepository.findAllByCategoryNameAndIsDeletedIsFalse(category.getName()).size()
+                ));
+
+        return categories.stream()
+                .map(category -> new CategoryPopularDTO(
+                        category.getId(),
+                        category.getName(),
+                        category.getIcon(),
+                        categoryCourseCounts.getOrDefault(category.getName(), 0L).intValue()
+                ))
+                .sorted((c1, c2) -> c2.totalCourse().compareTo(c1.totalCourse()))
+                .collect(Collectors.toList());
     }
 }
