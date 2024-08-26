@@ -1,0 +1,7 @@
+
+DB_USERNAME: admin
+DB_PASSWORD: admin@12345
+DB_HOST: localhost
+DB_PORT: 27017
+DB_NAME: mongo_db_hw
+AUTHENTICATION-DATABASE: admin

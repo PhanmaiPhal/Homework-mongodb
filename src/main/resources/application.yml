@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: mongodb-project
+
+  profiles:
+    active: dev
+
+  data:
+    mongodb:
+      host: ${DB_HOST}
+      port: ${DB_PORT}
+      database: ${DB_NAME}
+      username: ${DB_USERNAME}
+      password: ${DB_PASSWORD}
+      authentication-database: ${AUTHENTICATION-DATABASE}
+
+springdoc:
+  swagger-ui:
+    path: /
+
